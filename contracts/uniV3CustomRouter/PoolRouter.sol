@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.8.27;
 
-import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
-import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
-import '@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol';
-import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
-import '@uniswap/v3-core/contracts/libraries/TransferHelper.sol';
-import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
-import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import "@uniswap/v3-core/contracts/interfaces/IERC20Minimal.sol";
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import "@uniswap/v3-core/contracts/libraries/TransferHelper.sol";
+import "@uniswap/v3-periphery/contracts/libraries/Path.sol";
+import "@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol";
 
 contract PoolRouter is IUniswapV3SwapCallback {
-
     using Path for bytes;
 
     address public owner;
     address public pendingOwner;
     uint160 public MIN_SQRT_RATIO = 4295128739;
-    uint160 public MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+    uint160 public MAX_SQRT_RATIO =
+        1461446703485210103287273052203988822378723970342;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner can call this function");
@@ -35,57 +35,166 @@ contract PoolRouter is IUniswapV3SwapCallback {
         MAX_SQRT_RATIO = _maxRatio;
     }
 
-    function poolSwap(address tokenIn, address tokenOut, address pool,uint256 _amount, bool zeroForOne) external {
-        require(_amount > 0,"amount can't be zero");
+    event OwnershipTransferInitiated(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+    event SwapExecuted(
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOut
+    );
 
-        // Tranfer _amount of tokenIn to the contract
-        bool approveTokenIn = IERC20Minimal(tokenIn).transferFrom(msg.sender, address(this), _amount);
+    function _handleTokenTransferAndApproval(
+        address token,
+        uint256 amount
+    ) private {
+        require(
+            IERC20Minimal(token).transferFrom(
+                msg.sender,
+                address(this),
+                amount
+            ),
+            "Transfer of input token failed"
+        );
+        require(
+            IERC20Minimal(token).approve(msg.sender, amount),
+            "Approval of input token failed"
+        );
+    }
+
+    function swapToken0ForToken1(
+        address tokenIn,
+        address tokenOut,
+        address pool,
+        uint256 amountIn,
+        uint256 minAmountOut
+    ) external returns (uint256 amountOut) {
+        require(amountIn > 0, "Input amount must be greater than 0");
+
+        _handleTokenTransferAndApproval(tokenIn, amountIn);
+
+        IUniswapV3Pool(pool).swap(
+            address(this),
+            true, // zeroForOne
+            int256(amountIn),
+            MIN_SQRT_RATIO + 1,
+            abi.encode(msg.sender, tokenIn, tokenOut) // Updated encoded data
+        );
+
+        amountOut = IERC20Minimal(tokenOut).balanceOf(address(this));
+        require(amountOut >= minAmountOut, "Insufficient output amount");
+
+        require(
+            IERC20Minimal(tokenOut).transfer(msg.sender, amountOut),
+            "Output token transfer failed"
+        );
+
+        emit SwapExecuted(tokenIn, tokenOut, amountIn, amountOut);
+        return amountOut;
+    }
+
+    function swapToken1ForToken0(
+        address tokenIn,
+        address tokenOut,
+        address pool,
+        uint256 amountOut,
+        uint256 maxAmountIn
+    ) external returns (uint256 amountIn) {
+        require(amountOut > 0, "amount can't be zero");
+
+        // Transfer maxAmountIn of tokenIn to the contract
+        bool approveTokenIn = IERC20Minimal(tokenIn).transferFrom(
+            msg.sender,
+            address(this),
+            maxAmountIn
+        );
         require(approveTokenIn, "tokenIn transfer failed");
 
         // Approve the pool to spend tokenIn
-        bool approvePoolSpending = IERC20Minimal(tokenIn).approve(address(pool), _amount);
+        bool approvePoolSpending = IERC20Minimal(tokenIn).approve(
+            address(pool),
+            maxAmountIn
+        );
         require(approvePoolSpending, "Approve pool spending failed");
+
+        bool zeroForOne = false;
 
         IUniswapV3Pool(pool).swap({
             recipient: address(this),
             zeroForOne: zeroForOne,
-            amountSpecified: int256(_amount),
-            sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1,
+            amountSpecified: -int256(amountOut), // negative means exact output
+            sqrtPriceLimitX96: zeroForOne
+                ? MIN_SQRT_RATIO + 1
+                : MAX_SQRT_RATIO - 1,
             data: abi.encode(pool, tokenIn, pool)
         });
-        
-        //get token balance
-        uint256  amountOut = IERC20Minimal(tokenOut).balanceOf(address(this));
 
-        //tranfer amountOut to msg.sender
+        // Calculate actual amount of tokenIn used
+        amountIn =
+            maxAmountIn -
+            IERC20Minimal(tokenIn).balanceOf(address(this));
+        require(amountIn <= maxAmountIn, "Excessive input amount");
+
+        // Transfer exact output amount to user
         bool tx_s = IERC20Minimal(tokenOut).transfer(msg.sender, amountOut);
-        require(tx_s,"Amount transfer to caller failed");
+        require(tx_s, "Amount transfer to caller failed");
+
+        // Refund unused tokenIn
+        if (amountIn < maxAmountIn) {
+            bool refund = IERC20Minimal(tokenIn).transfer(
+                msg.sender,
+                maxAmountIn - amountIn
+            );
+            require(refund, "Refund failed");
+        }
+
+        return amountIn;
     }
 
-   function uniswapV3SwapCallback(
+    function uniswapV3SwapCallback(
         int256 amount0Delta,
         int256 amount1Delta,
         bytes calldata _data
     ) external override {
-        require(amount0Delta > 0 || amount1Delta > 0, "Invalid amounts");
-        
-        // decode pool address pass in call data
-        (address to, address tokenIn, address pool) = abi.decode(_data, (address, address, address));
-        require(msg.sender == pool,"Unauthorized caller");
+        require(amount0Delta > 0 || amount1Delta > 0, "Invalid swap amounts");
 
-        IERC20Minimal(tokenIn).transfer(to, uint256(amount0Delta));
-        }
+        (address recipient, address tokenIn, address tokenOut) = abi.decode(
+            _data,
+            (address, address, address)
+        );
+
+        uint256 amountToPay = amount0Delta > 0
+            ? uint256(amount0Delta)
+            : uint256(amount1Delta);
+
+        require(
+            IERC20Minimal(tokenIn).transfer(msg.sender, amountToPay),
+            "Callback transfer failed"
+        );
+    }
 
     // Step 1: Current owner initiates ownership transfer
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "New owner cannot be zero address");
         pendingOwner = newOwner;
+        emit OwnershipTransferInitiated(owner, newOwner);
     }
 
     // Step 2: New owner accepts ownership
     function acceptOwnership() external {
-        require(msg.sender == pendingOwner, "Only pending owner can accept ownership");
+        require(
+            msg.sender == pendingOwner,
+            "Only pending owner can accept ownership"
+        );
+        address oldOwner = owner;
         owner = pendingOwner;
         pendingOwner = address(0);
+        emit OwnershipTransferred(oldOwner, owner);
     }
 }

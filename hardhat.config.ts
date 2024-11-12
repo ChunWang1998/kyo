@@ -1,5 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 const config = {
   solidity: {
@@ -17,9 +19,9 @@ const config = {
   },
   networks: {
     minato:{
-      url: "https://soneium-minato.rpc.scs.startale.com?apikey=bz3a6ANdNm2brS1S3eysAALhqWcgtbcW",
+      url: process.env.RPC_URL,
       chainId: 1946,
-      accounts: ["7807184c87f5a3370a8782d1323d86f97637736bef384037952828293cefae13"]
+      accounts: [process.env.PRIVATE_KEY]
     }
   },
   etherscan: {
