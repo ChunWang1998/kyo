@@ -2,7 +2,19 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 const config = {
-  solidity: "0.8.27",
+  solidity: {
+    compilers: [
+      {
+        version: "0.7.6",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200
+          }
+        }
+      }
+    ]
+  },
   networks: {
     minato:{
       url: "https://soneium-minato.rpc.scs.startale.com?apikey=bz3a6ANdNm2brS1S3eysAALhqWcgtbcW",
