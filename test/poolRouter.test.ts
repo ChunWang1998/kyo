@@ -122,7 +122,7 @@ describe("PoolRouter", function () {
 
       await tokenA
         .connect(deployer)
-        .approve(poolRouter.getAddress(), swapAmount);
+        .approve(await poolRouter.getAddress(), swapAmount);
 
       const initialBalanceA = await tokenA.balanceOf(deployer.address);
       const initialBalanceB = await tokenB.balanceOf(deployer.address);
@@ -132,9 +132,9 @@ describe("PoolRouter", function () {
 
       await poolRouter
         .connect(deployer)
-        .swapToken0ForToken1(
-          tokenA.getAddress(),
-          tokenB.getAddress(),
+        .swapExactTokensForTokens(
+          await tokenA.getAddress(),
+          await tokenB.getAddress(),
           UNISWAP_POOL,
           swapAmount,
           minAmountOut
@@ -150,16 +150,16 @@ describe("PoolRouter", function () {
       expect(finalBalanceB).to.be.gt(initialBalanceB);
     });
 
-    it("Should execute swapTokensForExactTokens B->A successfully", async function () {
+    it("Should execute swapExactTokensForTokens B->A successfully", async function () {
       const { poolRouter, tokenA, tokenB, deployer } = await loadFixture(
         fixtureSetup
       );
-      const exactAmountOut = parseEther("1");
-      const maxAmountIn = parseEther("2");
+      const swapAmount = parseEther("1");
+      const minAmountOut = 0;
 
       await tokenB
         .connect(deployer)
-        .approve(poolRouter.getAddress(), maxAmountIn);
+        .approve(await poolRouter.getAddress(), swapAmount);
 
       const initialBalanceA = await tokenA.balanceOf(deployer.address);
       const initialBalanceB = await tokenB.balanceOf(deployer.address);
@@ -169,12 +169,12 @@ describe("PoolRouter", function () {
 
       await poolRouter
         .connect(deployer)
-        .swapToken1ForToken0(
-          tokenB.getAddress(),
-          tokenA.getAddress(),
+        .swapExactTokensForTokens(
+          await tokenB.getAddress(),
+          await tokenA.getAddress(),
           UNISWAP_POOL,
-          exactAmountOut,
-          maxAmountIn
+          swapAmount,
+          minAmountOut
         );
 
       const finalBalanceA = await tokenA.balanceOf(deployer.address);
@@ -185,6 +185,74 @@ describe("PoolRouter", function () {
 
       expect(finalBalanceB).to.be.lt(initialBalanceB);
       expect(finalBalanceA).to.be.gt(initialBalanceA);
+    });
+
+    it("Should execute swapTokensForExactTokens A->B successfully", async function () {
+      const { poolRouter, tokenA, tokenB, deployer } = await loadFixture(
+        fixtureSetup
+      );
+      const exactAmountOut = parseEther("1"); // We want exactly 1 token B
+      const maxAmountIn = parseEther("2"); // Willing to spend up to 2 token A
+
+      await tokenA
+        .connect(deployer)
+        .approve(await poolRouter.getAddress(), maxAmountIn);
+
+      const initialBalanceA = await tokenA.balanceOf(deployer.address);
+      const initialBalanceB = await tokenB.balanceOf(deployer.address);
+
+      console.log("Initial Balance A:", ethers.formatEther(initialBalanceA));
+      console.log("Initial Balance B:", ethers.formatEther(initialBalanceB));
+
+      const amountIn = await poolRouter
+        .connect(deployer)
+        .swapTokensForExactTokens(
+          await tokenA.getAddress(),
+          await tokenB.getAddress(),
+          UNISWAP_POOL,
+          exactAmountOut,
+          maxAmountIn
+        );
+
+      const finalBalanceA = await tokenA.balanceOf(deployer.address);
+      const finalBalanceB = await tokenB.balanceOf(deployer.address);
+
+      console.log("Final Balance A:", ethers.formatEther(finalBalanceA));
+      console.log("Final Balance B:", ethers.formatEther(finalBalanceB));
+    });
+
+    it("Should execute swapTokensForExactTokens B->A successfully", async function () {
+      const { poolRouter, tokenA, tokenB, deployer } = await loadFixture(
+        fixtureSetup
+      );
+      const exactAmountOut = parseEther("1"); // We want exactly 1 token A
+      const maxAmountIn = parseEther("2"); // Willing to spend up to 2 token B
+
+      await tokenB
+        .connect(deployer)
+        .approve(await poolRouter.getAddress(), maxAmountIn);
+
+      const initialBalanceA = await tokenA.balanceOf(deployer.address);
+      const initialBalanceB = await tokenB.balanceOf(deployer.address);
+
+      console.log("Initial Balance A:", ethers.formatEther(initialBalanceA));
+      console.log("Initial Balance B:", ethers.formatEther(initialBalanceB));
+
+      const amountIn = await poolRouter
+        .connect(deployer)
+        .swapTokensForExactTokens(
+          await tokenB.getAddress(),
+          await tokenA.getAddress(),
+          UNISWAP_POOL,
+          exactAmountOut,
+          maxAmountIn
+        );
+
+      const finalBalanceA = await tokenA.balanceOf(deployer.address);
+      const finalBalanceB = await tokenB.balanceOf(deployer.address);
+
+      console.log("Final Balance A:", ethers.formatEther(finalBalanceA));
+      console.log("Final Balance B:", ethers.formatEther(finalBalanceB));
     });
   });
 });

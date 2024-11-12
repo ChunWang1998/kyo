@@ -68,7 +68,7 @@ contract PoolRouter is IUniswapV3SwapCallback {
         );
     }
 
-    function swapToken0ForToken1(
+    function swapExactTokensForTokens(
         address tokenIn,
         address tokenOut,
         address pool,
@@ -79,12 +79,18 @@ contract PoolRouter is IUniswapV3SwapCallback {
 
         _handleTokenTransferAndApproval(tokenIn, amountIn);
 
+        // Determine swap direction based on token addresses
+        bool zeroForOne = tokenIn < tokenOut;
+        uint160 sqrtPriceLimitX96 = zeroForOne
+            ? MIN_SQRT_RATIO + 1
+            : MAX_SQRT_RATIO - 1;
+
         IUniswapV3Pool(pool).swap(
             address(this),
-            true, // zeroForOne
+            zeroForOne, // Updated to use calculated zeroForOne
             int256(amountIn),
-            MIN_SQRT_RATIO + 1,
-            abi.encode(msg.sender, tokenIn, tokenOut) // Updated encoded data
+            sqrtPriceLimitX96, // Updated price limit based on direction
+            abi.encode(msg.sender, tokenIn, tokenOut)
         );
 
         amountOut = IERC20Minimal(tokenOut).balanceOf(address(this));
@@ -99,7 +105,7 @@ contract PoolRouter is IUniswapV3SwapCallback {
         return amountOut;
     }
 
-    function swapToken1ForToken0(
+    function swapTokensForExactTokens(
         address tokenIn,
         address tokenOut,
         address pool,
@@ -123,7 +129,8 @@ contract PoolRouter is IUniswapV3SwapCallback {
         );
         require(approvePoolSpending, "Approve pool spending failed");
 
-        bool zeroForOne = false;
+        // Determine swap direction based on token addresses
+        bool zeroForOne = tokenIn < tokenOut;
 
         IUniswapV3Pool(pool).swap({
             recipient: address(this),
