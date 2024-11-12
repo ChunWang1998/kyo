@@ -27,7 +27,7 @@ async function depositToContract() {
     const vaultContract = new ethers.Contract(contractAddress, vaultAbi, wallet);
 
     try {
-        const amountToDeposit = ethers.parseEther("1000");
+        const amountToDeposit = ethers.parseEther("1");
         
         // First approve the vault to spend tokens
         console.log('Approving tokens...');
