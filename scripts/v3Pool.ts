@@ -1,4 +1,4 @@
-// ts-node scripts/approve.ts
+// ts-node scripts/v3Pool.ts
 require("dotenv").config();
 import { ethers } from "ethers";
 
@@ -9,7 +9,7 @@ async function pool() {
   const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
   const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-  const poolAddress = "0xb0652aa552058711ebd49e89d50ff205731a72bf";
+  const poolAddress = "0x5af8c50f19b8e750377713c9810678140318ba90";
 
   // Pool contract interface - we only need the slot0 function
   const poolABI = [
