@@ -11,7 +11,7 @@ async function approveTokens() {
   const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
   const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-  const spender = "0x7c79453fd5edd2F21b454e1eFce1d42c9C6cDf71";
+  const spender = "0x8dee69F2153052f03e57FcA93e3e8b3B046582d4";
   const tokenA = "0xaB1e79b421f4Fd6eFa7CC2a815F8217b1EBd1Fb1";
   const tokenB = "0xc449FC4f62a20Ecc79C06799122d44002B925ad8";
 
