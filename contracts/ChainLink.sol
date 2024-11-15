@@ -25,16 +25,16 @@ contract ChainlinkPriceFeedConsumer {
     ) {
         // 1. get yay/eth price from UniswapV3 pool
         (uint160 sqrtPriceX96,,,,,,) = IUniswapV3Pool(pool).slot0();
-        uint256 price = PRICE_PRECISION.mul(uint256(sqrtPriceX96) ** 2).div(2 ** 192);
-        answer = int256(price);
-        // answer: 0.0000071 => 1 yay = 0.0000071 eth
+        uint256 price = PRICE_PRECISION.mul(uint256(sqrtPriceX96).mul(uint256(sqrtPriceX96))).div(2 ** 192);
+        // price: 0.0000071 => 1 yay = 0.0000071 eth
 
         // 2. get eth price 
         (,int256 ethUsdPrice,,,) = AggregatorV3Interface(ethUsdPriceFeed).latestRoundData();
-        uint8 ethDecimal = AggregatorV3Interface(ethUsdPriceFeed).decimals();
+        // uint8 ethDecimal = AggregatorV3Interface(ethUsdPriceFeed).decimals();
         
         // 3. convert to yay/usd using SafeMath
-        answer = answer * ethUsdPrice / int256(10**ethDecimal);
+        uint256 yayUsdPrice = price.mul(uint256(ethUsdPrice)).div(PRICE_PRECISION);
+        answer = int256(yayUsdPrice);
 
         return (0, answer, 0, 0, 0);
     }
